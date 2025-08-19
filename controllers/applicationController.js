@@ -3,6 +3,7 @@
 
 
 const Application = require('../models/Application');
+const User = require('../models/User');
 const { validationResult } = require('express-validator');
 const nodemailer = require('nodemailer');
 const multer = require('multer');
@@ -164,145 +165,393 @@ const downloadTemplate = async (req, res) => {
 // @desc    Submit new application
 // @route   POST /api/applications
 // @access  Public
+// const submitApplication = async (req, res) => {
+//   uploadMiddleware(req, res, async (err) => {
+//     let uploadedFilePath = null;
+
+//     try {
+//       // Handle multer errors
+//       if (err) {
+//         if (err instanceof multer.MulterError) {
+//           if (err.code === 'LIMIT_FILE_SIZE') {
+//             return res.status(400).json({
+//               success: false,
+//               message: 'File too large',
+//               errors: [{
+//                 field: 'publicationDocument',
+//                 message: 'File size must be less than 5MB'
+//               }]
+//             });
+//           }
+//         }
+//         return res.status(400).json({
+//           success: false,
+//           message: 'File upload error',
+//           errors: [{
+//             field: 'publicationDocument',
+//             message: err.message || 'File upload failed'
+//           }]
+//         });
+//       }
+
+//       // Store file path for potential cleanup
+//       if (req.file) {
+//         uploadedFilePath = req.file.path;
+//       }
+
+//       // Parse JSON fields from FormData
+//       try {
+//         if (req.body.educationalQualifications) {
+//           if (typeof req.body.educationalQualifications === 'string') {
+//             req.body.educationalQualifications = JSON.parse(req.body.educationalQualifications);
+//           }
+//         }
+//         if (req.body.experience) {
+//           if (typeof req.body.experience === 'string') {
+//             req.body.experience = JSON.parse(req.body.experience);
+//           }
+//         }
+//       } catch (parseError) {
+//         console.error('[APP] JSON parse error:', parseError);
+//         if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
+//         return res.status(400).json({
+//           success: false,
+//           message: 'Invalid JSON data in form fields',
+//           errors: [{
+//             field: 'general',
+//             message: 'Failed to parse educational qualifications or experience data'
+//           }]
+//         });
+//       }
+
+//       // Log received data for debugging
+//       console.log('[APP] Received form data:');
+//       console.log('[APP] Email from form:', req.body.email);
+//       console.log('[APP] Declaration agreed:', req.body.declarationAgreed);
+//       console.log('[APP] Educational qualifications:', req.body.educationalQualifications);
+//       console.log('[APP] Experience:', req.body.experience);
+
+//       // Normalize email for verification check
+//       const normalizedEmail = req.body.email.toLowerCase().trim();
+//       const verificationKey = `${normalizedEmail}_verified`;
+
+//       console.log('[APP] Checking email verification...');
+//       console.log('[APP] Normalized email:', normalizedEmail);
+//       console.log('[APP] Verification key:', verificationKey);
+//       console.log('[APP] All OTP storage keys:', Array.from(otpStorage.keys()));
+
+//       const isEmailVerified = otpStorage.get(verificationKey) || false;
+//       console.log('[APP] Email verification status:', isEmailVerified);
+
+//       if (!isEmailVerified) {
+//         if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
+//         console.log('[APP] Email verification failed - returning error');
+//         return res.status(400).json({
+//           success: false,
+//           message: 'Email verification required',
+//           errors: [{
+//             field: 'email',
+//             message: 'Please verify your email address before submitting the application'
+//           }]
+//         });
+//       }
+
+//       console.log('[APP] Email verification passed - proceeding with submission');
+
+//       // Check declaration agreement
+//       if (!req.body.declarationAgreed || req.body.declarationAgreed !== 'true') {
+//         if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
+//         return res.status(400).json({
+//           success: false,
+//           message: 'Declaration agreement required',
+//           errors: [{
+//             field: 'declarationAgreed',
+//             message: 'You must agree to the declaration to proceed'
+//           }]
+//         });
+//       }
+
+//       // Extract client IP address
+//       const ipAddress = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'];
+
+//       // Check for duplicate email submissions in last 24 hours
+//       const existingApplication = await Application.findOne({
+//         email: normalizedEmail,
+//         submissionTime: {
+//           $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+//         }
+//       });
+
+//       if (existingApplication) {
+//         if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
+//         return res.status(409).json({
+//           success: false,
+//           message: 'An application with this email was already submitted in the last 24 hours',
+//           applicationId: existingApplication.applicationId
+//         });
+//       }
+
+//       // Prepare application data
+//       const applicationData = {
+//         ...req.body,
+//         email: normalizedEmail, // Use normalized email
+//         declarationAgreed: true, // Set as boolean
+//         ipAddress,
+//         submissionTime: new Date()
+//       };
+
+//       // Remove emailVerified field from data before saving
+//       delete applicationData.emailVerified;
+
+//       // Handle file upload data
+//       if (req.file) {
+//         applicationData.publicationDocument = {
+//           filename: req.file.filename,
+//           originalName: req.file.originalname,
+//           size: req.file.size,
+//           mimeType: req.file.mimetype,
+//           uploadDate: new Date(),
+//           path: req.file.path
+//         };
+//       }
+
+//       // Validate publication document is required
+//       if (!req.file) {
+//         if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
+//         return res.status(400).json({
+//           success: false,
+//           message: 'Publication document is required',
+//           errors: [{
+//             field: 'publicationDocument',
+//             message: 'Publication document upload is mandatory'
+//           }]
+//         });
+//       }
+
+//       // Validate educational qualifications array
+//       if (!applicationData.educationalQualifications ||
+//         !Array.isArray(applicationData.educationalQualifications) ||
+//         applicationData.educationalQualifications.length === 0) {
+//         if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
+//         return res.status(400).json({
+//           success: false,
+//           message: 'At least one educational qualification is required',
+//           errors: [{
+//             field: 'educationalQualifications',
+//             message: 'At least one educational qualification is required'
+//           }]
+//         });
+//       }
+
+//       // Validate experience array
+//       if (!applicationData.experience ||
+//         !Array.isArray(applicationData.experience) ||
+//         applicationData.experience.length === 0) {
+//         if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
+//         return res.status(400).json({
+//           success: false,
+//           message: 'At least one work experience is required',
+//           errors: [{
+//             field: 'experience',
+//             message: 'At least one work experience is required'
+//           }]
+//         });
+//       }
+
+//       // Validate each educational qualification (Updated with nameOfExamination)
+//       for (let i = 0; i < applicationData.educationalQualifications.length; i++) {
+//         const qual = applicationData.educationalQualifications[i];
+//         const errors = [];
+
+//         if (!qual.institute || !qual.institute.trim()) {
+//           errors.push({ field: `educationalQualifications[${i}].institute`, message: 'Institute name is required' });
+//         }
+
+//         if (!qual.examPassed) {
+//           errors.push({ field: `educationalQualifications[${i}].examPassed`, message: 'Exam passed is required' });
+//         }
+
+//         if (!qual.nameOfExamination || !qual.nameOfExamination.trim()) {
+//           errors.push({ field: `educationalQualifications[${i}].nameOfExamination`, message: 'Name of examination is required' });
+//         }
+
+//         if (!qual.yearOfPassing || !qual.yearOfPassing.toString().trim()) {
+//           errors.push({ field: `educationalQualifications[${i}].yearOfPassing`, message: 'Year of passing is required' });
+//         }
+
+//         if (!qual.marksPercentage || !qual.marksPercentage.trim()) {
+//           errors.push({ field: `educationalQualifications[${i}].marksPercentage`, message: 'Marks/Percentage is required' });
+//         }
+
+//         if (errors.length > 0) {
+//           if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
+//           return res.status(400).json({
+//             success: false,
+//             message: 'Educational qualification validation failed',
+//             errors
+//           });
+//         }
+//       }
+
+//       // Validate each experience
+
+
+//       console.log('[APP] All validations passed - creating application');
+
+//       // Create new application
+//       const application = new Application(applicationData);
+//       await application.save();
+
+//       console.log('[APP] Application saved successfully:', application.applicationId);
+
+//       // Send confirmation email (async, don't wait)
+//       sendConfirmationEmail(application);
+
+//       // Clean up verification status ONLY after successful submission
+//       otpStorage.delete(verificationKey);
+//       console.log('[APP] Cleaned up verification status for:', normalizedEmail);
+
+//       res.status(201).json({
+//         success: true,
+//         message: 'Application submitted successfully',
+//         applicationId: application.applicationId,
+//         submissionTime: application.submissionTime,
+//         publicationDocument: application.publicationDocument?.filename ? {
+//           uploaded: true,
+//           filename: application.publicationDocument.originalName,
+//           size: application.publicationDocument.size
+//         } : null
+//       });
+
+//     } catch (error) {
+//       console.error('[APP] Application submission error:', error);
+
+//       // Clean up uploaded file on error
+//       if (uploadedFilePath) {
+//         await deleteUploadedFile(uploadedFilePath);
+//       }
+
+//       // Handle specific MongoDB errors
+//       if (error.code === 11000) {
+//         return res.status(409).json({
+//           success: false,
+//           message: 'Application with this email already exists'
+//         });
+//       }
+
+//       if (error.name === 'ValidationError') {
+//         const validationErrors = Object.values(error.errors).map(err => ({
+//           field: err.path,
+//           message: err.message
+//         }));
+
+//         return res.status(400).json({
+//           success: false,
+//           message: 'Validation failed',
+//           errors: validationErrors
+//         });
+//       }
+
+//       res.status(500).json({
+//         success: false,
+//         message: 'Internal server error. Please try again later.'
+//       });
+//     }
+//   });
+// };
+
+
+// @desc    Submit new application
+// @route   POST /api/applications/form/:userId
+// @access  Public
 const submitApplication = async (req, res) => {
-  uploadMiddleware(req, res, async (err) => {
-    let uploadedFilePath = null;
+  uploadMiddleware(req, res, async (uploadErr) => {
+    if (uploadErr) {
+      console.error('[APP] Upload error:', uploadErr);
+      return res.status(400).json({
+        success: false,
+        message: uploadErr.message || 'File upload failed',
+        code: 'FILE_UPLOAD_ERROR'
+      });
+    }
 
     try {
-      // Handle multer errors
-      if (err) {
-        if (err instanceof multer.MulterError) {
-          if (err.code === 'LIMIT_FILE_SIZE') {
-            return res.status(400).json({
-              success: false,
-              message: 'File too large',
-              errors: [{
-                field: 'publicationDocument',
-                message: 'File size must be less than 5MB'
-              }]
-            });
-          }
-        }
+      const formOwner = req.formOwner; // Set by validateFormAccess middleware
+      const {
+        email,
+        name,
+        address,
+        phone,
+        category,
+        dob,
+        gender,
+        professionalExam,
+        professionalExamValidity,
+        educationalQualifications,
+        experience,
+        publicationDetails,
+        declarationAgreed,
+        applicationDate,
+        applicationPlace,
+        nameDeclaration,
+        otherExamName
+      } = req.body;
+
+      // Verify OTP
+      const normalizedEmail = email.toLowerCase().trim();
+      const storedOTPData = otpStorage.get(normalizedEmail);
+
+      if (!storedOTPData || !storedOTPData.verified) {
         return res.status(400).json({
           success: false,
-          message: 'File upload error',
-          errors: [{
-            field: 'publicationDocument',
-            message: err.message || 'File upload failed'
-          }]
+          message: 'Email verification required. Please verify your email first.',
+          code: 'EMAIL_NOT_VERIFIED'
         });
       }
 
-      // Store file path for potential cleanup
-      if (req.file) {
-        uploadedFilePath = req.file.path;
-      }
-
-      // Parse JSON fields from FormData
+      // Parse JSON strings if they come as strings
+      let parsedEducation, parsedExperience;
       try {
-        if (req.body.educationalQualifications) {
-          if (typeof req.body.educationalQualifications === 'string') {
-            req.body.educationalQualifications = JSON.parse(req.body.educationalQualifications);
-          }
-        }
-        if (req.body.experience) {
-          if (typeof req.body.experience === 'string') {
-            req.body.experience = JSON.parse(req.body.experience);
-          }
-        }
+        parsedEducation = typeof educationalQualifications === 'string'
+          ? JSON.parse(educationalQualifications)
+          : educationalQualifications;
+        parsedExperience = typeof experience === 'string'
+          ? JSON.parse(experience)
+          : experience;
       } catch (parseError) {
-        console.error('[APP] JSON parse error:', parseError);
-        if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
         return res.status(400).json({
           success: false,
-          message: 'Invalid JSON data in form fields',
-          errors: [{
-            field: 'general',
-            message: 'Failed to parse educational qualifications or experience data'
-          }]
+          message: 'Invalid education or experience data format',
+          code: 'INVALID_DATA_FORMAT'
         });
       }
 
-      // Log received data for debugging
-      console.log('[APP] Received form data:');
-      console.log('[APP] Email from form:', req.body.email);
-      console.log('[APP] Declaration agreed:', req.body.declarationAgreed);
-      console.log('[APP] Educational qualifications:', req.body.educationalQualifications);
-      console.log('[APP] Experience:', req.body.experience);
-
-      // Normalize email for verification check
-      const normalizedEmail = req.body.email.toLowerCase().trim();
-      const verificationKey = `${normalizedEmail}_verified`;
-
-      console.log('[APP] Checking email verification...');
-      console.log('[APP] Normalized email:', normalizedEmail);
-      console.log('[APP] Verification key:', verificationKey);
-      console.log('[APP] All OTP storage keys:', Array.from(otpStorage.keys()));
-
-      const isEmailVerified = otpStorage.get(verificationKey) || false;
-      console.log('[APP] Email verification status:', isEmailVerified);
-
-      if (!isEmailVerified) {
-        if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
-        console.log('[APP] Email verification failed - returning error');
-        return res.status(400).json({
-          success: false,
-          message: 'Email verification required',
-          errors: [{
-            field: 'email',
-            message: 'Please verify your email address before submitting the application'
-          }]
-        });
-      }
-
-      console.log('[APP] Email verification passed - proceeding with submission');
-
-      // Check declaration agreement
-      if (!req.body.declarationAgreed || req.body.declarationAgreed !== 'true') {
-        if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
-        return res.status(400).json({
-          success: false,
-          message: 'Declaration agreement required',
-          errors: [{
-            field: 'declarationAgreed',
-            message: 'You must agree to the declaration to proceed'
-          }]
-        });
-      }
-
-      // Extract client IP address
-      const ipAddress = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'];
-
-      // Check for duplicate email submissions in last 24 hours
-      const existingApplication = await Application.findOne({
-        email: normalizedEmail,
-        submissionTime: {
-          $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
-        }
-      });
-
-      if (existingApplication) {
-        if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
-        return res.status(409).json({
-          success: false,
-          message: 'An application with this email was already submitted in the last 24 hours',
-          applicationId: existingApplication.applicationId
-        });
-      }
-
-      // Prepare application data
+      // Create application with userId (MULTI-USER SUPPORT)
       const applicationData = {
-        ...req.body,
-        email: normalizedEmail, // Use normalized email
-        declarationAgreed: true, // Set as boolean
-        ipAddress,
-        submissionTime: new Date()
+        userId: formOwner._id, // Link to form owner
+        name,
+        address,
+        phone,
+        email: normalizedEmail,
+        category,
+        dob: new Date(dob),
+        gender,
+        professionalExam: professionalExam || '',
+        professionalExamValidity: professionalExamValidity ? new Date(professionalExamValidity) : null,
+        educationalQualifications: parsedEducation || [],
+        experience: parsedExperience || [],
+        publicationDetails: publicationDetails || '',
+        otherExamName: otherExamName || '',
+        declarationAgreed: declarationAgreed === true || declarationAgreed === 'true',
+        applicationDate: new Date(applicationDate),
+        applicationPlace,
+        nameDeclaration,
+        submissionTime: new Date(),
+        ipAddress: req.ip || req.connection.remoteAddress,
+        status: 'submitted'
       };
 
-      // Remove emailVerified field from data before saving
-      delete applicationData.emailVerified;
-
-      // Handle file upload data
+      // Handle file upload
       if (req.file) {
         applicationData.publicationDocument = {
           filename: req.file.filename,
@@ -314,132 +563,45 @@ const submitApplication = async (req, res) => {
         };
       }
 
-      // Validate publication document is required
-      if (!req.file) {
-        if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
-        return res.status(400).json({
-          success: false,
-          message: 'Publication document is required',
-          errors: [{
-            field: 'publicationDocument',
-            message: 'Publication document upload is mandatory'
-          }]
-        });
-      }
-
-      // Validate educational qualifications array
-      if (!applicationData.educationalQualifications ||
-        !Array.isArray(applicationData.educationalQualifications) ||
-        applicationData.educationalQualifications.length === 0) {
-        if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
-        return res.status(400).json({
-          success: false,
-          message: 'At least one educational qualification is required',
-          errors: [{
-            field: 'educationalQualifications',
-            message: 'At least one educational qualification is required'
-          }]
-        });
-      }
-
-      // Validate experience array
-      if (!applicationData.experience ||
-        !Array.isArray(applicationData.experience) ||
-        applicationData.experience.length === 0) {
-        if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
-        return res.status(400).json({
-          success: false,
-          message: 'At least one work experience is required',
-          errors: [{
-            field: 'experience',
-            message: 'At least one work experience is required'
-          }]
-        });
-      }
-
-      // Validate each educational qualification (Updated with nameOfExamination)
-      for (let i = 0; i < applicationData.educationalQualifications.length; i++) {
-        const qual = applicationData.educationalQualifications[i];
-        const errors = [];
-
-        if (!qual.institute || !qual.institute.trim()) {
-          errors.push({ field: `educationalQualifications[${i}].institute`, message: 'Institute name is required' });
-        }
-
-        if (!qual.examPassed) {
-          errors.push({ field: `educationalQualifications[${i}].examPassed`, message: 'Exam passed is required' });
-        }
-
-        if (!qual.nameOfExamination || !qual.nameOfExamination.trim()) {
-          errors.push({ field: `educationalQualifications[${i}].nameOfExamination`, message: 'Name of examination is required' });
-        }
-
-        if (!qual.yearOfPassing || !qual.yearOfPassing.toString().trim()) {
-          errors.push({ field: `educationalQualifications[${i}].yearOfPassing`, message: 'Year of passing is required' });
-        }
-
-        if (!qual.marksPercentage || !qual.marksPercentage.trim()) {
-          errors.push({ field: `educationalQualifications[${i}].marksPercentage`, message: 'Marks/Percentage is required' });
-        }
-
-        if (errors.length > 0) {
-          if (uploadedFilePath) await deleteUploadedFile(uploadedFilePath);
-          return res.status(400).json({
-            success: false,
-            message: 'Educational qualification validation failed',
-            errors
-          });
-        }
-      }
-
-      // Validate each experience
-
-
-      console.log('[APP] All validations passed - creating application');
-
-      // Create new application
       const application = new Application(applicationData);
       await application.save();
 
-      console.log('[APP] Application saved successfully:', application.applicationId);
+      // Update user statistics
+      await formOwner.updateStats();
 
-      // Send confirmation email (async, don't wait)
-      sendConfirmationEmail(application);
+      // Clear OTP after successful submission
+      otpStorage.delete(normalizedEmail);
 
-      // Clean up verification status ONLY after successful submission
-      otpStorage.delete(verificationKey);
-      console.log('[APP] Cleaned up verification status for:', normalizedEmail);
+      // Send confirmation email
+      try {
+        await sendConfirmationEmail(application, formOwner);
+      } catch (emailError) {
+        console.error('[APP] Confirmation email failed:', emailError);
+      }
+
+      console.log(`[APP] Application submitted: ${application.applicationId} to ${formOwner.username}`);
 
       res.status(201).json({
         success: true,
         message: 'Application submitted successfully',
         applicationId: application.applicationId,
-        submissionTime: application.submissionTime,
-        publicationDocument: application.publicationDocument?.filename ? {
-          uploaded: true,
-          filename: application.publicationDocument.originalName,
-          size: application.publicationDocument.size
-        } : null
+        submissionTime: application.submissionTime
       });
 
     } catch (error) {
-      console.error('[APP] Application submission error:', error);
+      console.error('[APP] Submit application error:', error);
 
       // Clean up uploaded file on error
-      if (uploadedFilePath) {
-        await deleteUploadedFile(uploadedFilePath);
-      }
-
-      // Handle specific MongoDB errors
-      if (error.code === 11000) {
-        return res.status(409).json({
-          success: false,
-          message: 'Application with this email already exists'
-        });
+      if (req.file && req.file.path) {
+        try {
+          await fs.unlink(req.file.path);
+        } catch (cleanupError) {
+          console.error('[APP] File cleanup error:', cleanupError);
+        }
       }
 
       if (error.name === 'ValidationError') {
-        const validationErrors = Object.values(error.errors).map(err => ({
+        const errors = Object.values(error.errors).map(err => ({
           field: err.path,
           message: err.message
         }));
@@ -447,17 +609,22 @@ const submitApplication = async (req, res) => {
         return res.status(400).json({
           success: false,
           message: 'Validation failed',
-          errors: validationErrors
+          errors,
+          code: 'VALIDATION_ERROR'
         });
       }
 
       res.status(500).json({
         success: false,
-        message: 'Internal server error. Please try again later.'
+        message: 'Internal server error',
+        code: 'INTERNAL_ERROR'
       });
     }
   });
 };
+
+
+
 
 // @desc    Get application by ID
 // @route   GET /api/applications/:applicationId
@@ -555,38 +722,46 @@ const downloadPublicationDocument = async (req, res) => {
 // @desc    Get all applications (Admin)
 // @route   GET /api/applications
 // @access  Private (Add authentication middleware)
+// @desc    Get all applications for authenticated user
+// @route   GET /api/applications/user/list
+// @access  Private
 const getAllApplications = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
     const status = req.query.status;
+    const priority = req.query.priority;
     const search = req.query.search;
+    const sortBy = req.query.sortBy || 'submissionTime';
+    const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+    const skip = (page - 1) * limit;
 
-    // Build query
-    let query = {};
+    // Build filter for user's applications only
+    const filter = { userId: req.user.id };
 
-    // Status filter
-    if (status && ['submitted', 'under_review', 'approved', 'rejected'].includes(status)) {
-      query.status = status;
+    if (status && status !== 'all') {
+      filter.status = status;
     }
 
-    // Search filter
+    if (priority && priority !== 'all') {
+      filter.priority = priority;
+    }
+
     if (search) {
-      query.$or = [
+      filter.$or = [
         { name: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
         { applicationId: { $regex: search, $options: 'i' } }
       ];
     }
 
-    const applications = await Application.find(query)
-      .sort({ submissionTime: -1 })
+    const applications = await Application.find(filter)
+      .sort({ [sortBy]: sortOrder })
       .skip(skip)
       .limit(limit)
-      .select('-__v -publicationDocument.path'); // Exclude version field and file path for security
+      .select('-__v -publicationDocument.path');
 
-    const total = await Application.countDocuments(query);
+    const total = await Application.countDocuments(filter);
 
     res.status(200).json({
       success: true,
@@ -595,7 +770,16 @@ const getAllApplications = async (req, res) => {
         current: page,
         pages: Math.ceil(total / limit),
         total,
-        limit
+        limit,
+        hasNext: page < Math.ceil(total / limit),
+        hasPrev: page > 1
+      },
+      filters: {
+        status,
+        priority,
+        search,
+        sortBy,
+        sortOrder: req.query.sortOrder || 'desc'
       }
     });
 
@@ -603,7 +787,8 @@ const getAllApplications = async (req, res) => {
     console.error('[APP] Error fetching applications:', error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Internal server error',
+      code: 'INTERNAL_ERROR'
     });
   }
 };
@@ -611,32 +796,18 @@ const getAllApplications = async (req, res) => {
 // @desc    Update application status (Admin)
 // @route   PUT /api/applications/:applicationId/status
 // @access  Private (Add authentication middleware)
+// @desc    Update application status
+// @route   PUT /api/applications/:applicationId/status
+// @access  Private
 const updateApplicationStatus = async (req, res) => {
   try {
-    const { applicationId } = req.params;
-    const { status } = req.body;
+    const { status, remarks } = req.body;
+    const application = req.application; // Set by checkApplicationOwnership middleware
 
-    // Validate status
-    const validStatuses = ['submitted', 'under_review', 'approved', 'rejected'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid status'
-      });
-    }
+    // Use the new status update method with history tracking
+    await application.updateStatus(status, req.user.id, remarks);
 
-    const application = await Application.findOneAndUpdate(
-      { applicationId },
-      { status },
-      { new: true, runValidators: true }
-    );
-
-    if (!application) {
-      return res.status(404).json({
-        success: false,
-        message: 'Application not found'
-      });
-    }
+    console.log(`[APP] Status updated: ${application.applicationId} -> ${status} by ${req.user.username}`);
 
     res.status(200).json({
       success: true,
@@ -644,15 +815,17 @@ const updateApplicationStatus = async (req, res) => {
       application: {
         applicationId: application.applicationId,
         status: application.status,
-        updatedAt: application.updatedAt
+        currentRemarks: application.currentRemarks,
+        statusHistory: application.statusHistory
       }
     });
 
   } catch (error) {
-    console.error('[APP] Error updating application status:', error);
+    console.error('[APP] Status update error:', error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Internal server error',
+      code: 'INTERNAL_ERROR'
     });
   }
 };
@@ -660,9 +833,14 @@ const updateApplicationStatus = async (req, res) => {
 // @desc    Get application statistics (Admin)
 // @route   GET /api/applications/stats
 // @access  Private (Add authentication middleware)
+// @desc    Get application statistics for authenticated user
+// @route   GET /api/applications/user/stats
+// @access  Private
 const getApplicationStats = async (req, res) => {
   try {
+    // Get stats only for current user's applications
     const stats = await Application.aggregate([
+      { $match: { userId: req.user.id } },
       {
         $group: {
           _id: '$status',
@@ -671,46 +849,42 @@ const getApplicationStats = async (req, res) => {
       }
     ]);
 
-    const totalApplications = await Application.countDocuments();
-    const recentApplications = await Application.getRecentApplications(5);
+    const totalApplications = await Application.countDocuments({ userId: req.user.id });
 
-    // Get applications with publications count
-    const applicationsWithPublications = await Application.countDocuments({
-      'publicationDocument.filename': { $exists: true, $ne: null }
-    });
+    // Get priority distribution
+    const priorityStats = await Application.aggregate([
+      { $match: { userId: req.user.id } },
+      {
+        $group: {
+          _id: '$priority',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
 
-    // Get applications with publication details count
-    const applicationsWithPublicationDetails = await Application.countDocuments({
-      publicationDetails: { $exists: true, $ne: '', $ne: null }
-    });
+    // Get recent applications
+    const recentApplications = await Application.find({ userId: req.user.id })
+      .sort({ submissionTime: -1 })
+      .limit(5)
+      .select('applicationId name email status submissionTime');
 
-    const statusCounts = {
-      submitted: 0,
-      under_review: 0,
-      approved: 0,
-      rejected: 0
-    };
-
-    stats.forEach(stat => {
-      statusCounts[stat._id] = stat.count;
+    // Get applications with publications
+    const publicationsCount = await Application.countDocuments({
+      userId: req.user.id,
+      $or: [
+        { 'publicationDocument.filename': { $exists: true, $ne: null } },
+        { publicationDetails: { $exists: true, $ne: '', $ne: null } }
+      ]
     });
 
     res.status(200).json({
       success: true,
       stats: {
         total: totalApplications,
-        withPublications: applicationsWithPublications,
-        withPublicationDetails: applicationsWithPublicationDetails,
-        statusCounts,
-        recentApplications: recentApplications.map(app => ({
-          applicationId: app.applicationId,
-          name: app.name,
-          email: app.email,
-          status: app.status,
-          submissionTime: app.submissionTime,
-          hasPublicationDocument: app.hasPublicationDocument(),
-          hasPublicationDetails: !!(app.publicationDetails && app.publicationDetails.trim())
-        }))
+        statusDistribution: stats,
+        priorityDistribution: priorityStats,
+        withPublications: publicationsCount,
+        recentApplications
       }
     });
 
@@ -718,7 +892,8 @@ const getApplicationStats = async (req, res) => {
     console.error('[APP] Error fetching application stats:', error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Internal server error',
+      code: 'INTERNAL_ERROR'
     });
   }
 };
@@ -776,6 +951,7 @@ const getApplicationsWithPublications = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const applications = await Application.find({
+      userId: req.user.id, // ADD THIS LINE - only user's applications
       $or: [
         { 'publicationDocument.filename': { $exists: true, $ne: null } },
         { publicationDetails: { $exists: true, $ne: '', $ne: null } }
@@ -862,6 +1038,7 @@ const cleanupOrphanedFiles = async (req, res) => {
     });
   }
 };
+
 
 module.exports = {
   submitApplication,
