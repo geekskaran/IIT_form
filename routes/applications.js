@@ -131,20 +131,18 @@ router.get('/form/:userId/config',
       res.status(200).json({
         success: true,
         formConfig: {
-          title: formOwner.formConfig.title,
-          description: formOwner.formConfig.description,
-          customHeadings: formOwner.formConfig.customHeadings.filter(h => h.isActive),
+          title: formOwner.formConfig.title || 'Application Form',
+          description: formOwner.formConfig.description || 'Please fill out this application form completely.',
+          customHeadings: formOwner.formConfig.customHeadings || [],
           ownerInfo: {
             name: formOwner.getFullName(),
-            organization: formOwner.organization
+            organization: formOwner.organization || ''
           },
-          advertisement: formOwner.formConfig.advertisement.filename ? {
-            filename: formOwner.formConfig.advertisement.filename,
-            originalName: formOwner.formConfig.advertisement.originalName,
-            mimeType: formOwner.formConfig.advertisement.mimeType
-          } : null
+          advertisement: formOwner.formConfig.advertisement || null,
+          isActive: formOwner.formConfig.isActive
         }
       });
+      
     } catch (error) {
       console.error('[APP] Get form config error:', error);
       res.status(500).json({

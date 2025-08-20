@@ -234,6 +234,50 @@ const checkResourceOwnership = (resourceField = 'userId') => {
 /**
  * Middleware to validate form access
  */
+// const validateFormAccess = async (req, res, next) => {
+//   try {
+//     const { userId } = req.params;
+    
+//     if (!userId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'User ID is required',
+//         code: 'MISSING_USER_ID'
+//       });
+//     }
+
+//     const User = require('../models/User');
+//     const formOwner = await User.findOne({ userId, isActive: true });
+    
+//     if (!formOwner) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Form not found or inactive',
+//         code: 'FORM_NOT_FOUND'
+//       });
+//     }
+
+//     if (!formOwner.canAcceptApplications()) {
+//       return res.status(403).json({
+//         success: false,
+//         message: 'This form is not currently accepting applications',
+//         code: 'FORM_CLOSED'
+//       });
+//     }
+
+//     req.formOwner = formOwner;
+//     next();
+//   } catch (error) {
+//     console.error('[AUTH] Form access validation error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Form validation error',
+//       code: 'FORM_VALIDATION_ERROR'
+//     });
+//   }
+// };
+
+
 const validateFormAccess = async (req, res, next) => {
   try {
     const { userId } = req.params;
@@ -246,8 +290,9 @@ const validateFormAccess = async (req, res, next) => {
       });
     }
 
+    // Find the form owner
     const User = require('../models/User');
-    const formOwner = await User.findOne({ userId, isActive: true });
+    const formOwner = await User.findOne({ userId: userId, isActive: true });
     
     if (!formOwner) {
       return res.status(404).json({
@@ -257,22 +302,25 @@ const validateFormAccess = async (req, res, next) => {
       });
     }
 
-    if (!formOwner.canAcceptApplications()) {
+    // Check if form is accepting applications
+    if (!formOwner.formConfig || !formOwner.formConfig.isActive) {
       return res.status(403).json({
         success: false,
-        message: 'This form is not currently accepting applications',
-        code: 'FORM_CLOSED'
+        message: 'Form is not currently accepting applications',
+        code: 'FORM_INACTIVE'
       });
     }
 
+    // Attach form owner to request for use in route handlers
     req.formOwner = formOwner;
     next();
+    
   } catch (error) {
-    console.error('[AUTH] Form access validation error:', error);
+    console.error('[MIDDLEWARE] Form access validation error:', error);
     res.status(500).json({
       success: false,
-      message: 'Form validation error',
-      code: 'FORM_VALIDATION_ERROR'
+      message: 'Internal server error',
+      code: 'INTERNAL_ERROR'
     });
   }
 };
@@ -464,3 +512,4 @@ module.exports = {
   logUserActivity,
   authErrorHandler
 };
+
